@@ -1,6 +1,7 @@
 <div align="center">
-  <img src="public/logos/Ingredio.webp" width="400" alt="Ingredio Logo" />
+  <img src="public/logos/ingredio.webp" width="200" alt="Ingredio Logo" />
   <br />
+  <h2>App Icon</h2>
   <img src="public/logos/logo-small.webp" width="80" alt="Ingredio Icon" />
 
   <h1>Ingredio</h1>
