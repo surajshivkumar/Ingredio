@@ -1,6 +1,12 @@
-# Ingredio
+<div align="center">
+  <img src="public/logos/Ingredio.webp" width="400" alt="Ingredio Logo" />
+  <br />
+  <img src="public/logos/logo-small.webp" width="80" alt="Ingredio Icon" />
 
-Scan any Indian food or cosmetic product barcode and get an instant ingredient safety score.
+  <h1>Ingredio</h1>
+
+  <p>Scan any Indian food or cosmetic product barcode and get an instant ingredient safety score.</p>
+</div>
 
 ---
 
