@@ -1,11 +1,21 @@
-import React, { useRef, useState } from 'react';
-import { View, StyleSheet, Dimensions, Animated, Text, TouchableOpacity, Image } from 'react-native';
-import MaskedView from '@react-native-masked-view/masked-view';
-import Svg, { Path } from 'react-native-svg';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme/colors';
+import React, { useRef, useState, useEffect } from "react";
+import {
+  View,
+  StyleSheet,
+  Dimensions,
+  Animated,
+  Text,
+  TouchableOpacity,
+  Image,
+  Alert,
+} from "react-native";
+import MaskedView from "@react-native-masked-view/masked-view";
+import Svg, { Path } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { colors } from "../theme/colors";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 // A smooth bezier wave calculation
 const waveHeight = 20;
@@ -20,9 +30,39 @@ const wavePath = `
 
 export default function ScanScreen() {
   const [isRevealed, setIsRevealed] = useState(false);
-  const waveAnim = useRef(new Animated.Value(height)).current; 
+  const waveAnim = useRef(new Animated.Value(height)).current;
+  const scanLineAnim = useRef(new Animated.Value(-90)).current;
+  const [permission, requestPermission] = useCameraPermissions();
 
-  const handleTriggerRender = () => {
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null;
+    if (isRevealed) {
+      scanLineAnim.setValue(-90);
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 90,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: -90,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      animation.start();
+    } else {
+      scanLineAnim.stopAnimation();
+      scanLineAnim.setValue(-90);
+    }
+    return () => {
+      if (animation) animation.stop();
+    };
+  }, [isRevealed, scanLineAnim]);
+
+  const handleTriggerRender = async () => {
     if (isRevealed) {
       // Reset
       Animated.timing(waveAnim, {
@@ -31,6 +71,22 @@ export default function ScanScreen() {
         useNativeDriver: true,
       }).start(() => setIsRevealed(false));
     } else {
+      if (!permission) {
+        // Camera permissions are still loading
+        return;
+      }
+
+      if (!permission.granted) {
+        const result = await requestPermission();
+        if (!result.granted) {
+          Alert.alert(
+            "Permission Required",
+            "Camera access is needed to scan barcodes.",
+          );
+          return;
+        }
+      }
+
       // Reveal the scanner
       setIsRevealed(true);
       Animated.timing(waveAnim, {
@@ -43,19 +99,24 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.container}>
-      
       {/* LAYER 0: Bottom Layer - Mascot (Static) */}
       <View style={styles.layer0}>
-        <Image 
-          source={require('../../assets/mascot_happy_no_hands.webp')} 
-          style={styles.heroMascot} 
-          resizeMode="contain" 
+        <Image
+          source={require("../../assets/mascot_happy_no_hands.webp")}
+          style={styles.heroMascot}
+          resizeMode="contain"
         />
         <Text style={styles.heroTitle}>Ready to analyze?</Text>
-        <Text style={styles.heroSubtitle}>Position the barcode over the scanner to begin the check.</Text>
-        
+        <Text style={styles.heroSubtitle}>
+          Position the barcode over the scanner to begin the check.
+        </Text>
+
         {!isRevealed && (
-          <TouchableOpacity style={styles.triggerButton} onPress={handleTriggerRender} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.triggerButton}
+            onPress={handleTriggerRender}
+            activeOpacity={0.8}
+          >
             <Ionicons name="scan" size={24} color="#FFFFFF" />
             <Text style={styles.triggerText}>Initiate Scan Engine</Text>
           </TouchableOpacity>
@@ -66,26 +127,44 @@ export default function ScanScreen() {
       {/* The MaskedView only renders its children where the maskElement is opaque (black) */}
       <MaskedView
         style={StyleSheet.absoluteFill}
-        pointerEvents={isRevealed ? 'auto' : 'none'}
+        pointerEvents={isRevealed ? "auto" : "none"}
         maskElement={
           // The Mask defines what parts of Layer 1 to show.
           // Anything transparent hides Layer 1. Anything black shows Layer 1.
-          <Animated.View style={[
-            StyleSheet.absoluteFill, 
-            { transform: [{ translateY: waveAnim }] }
-          ]}>
-            <Svg height={waveHeight} width={width} style={{ backgroundColor: 'transparent' }}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { transform: [{ translateY: waveAnim }] },
+            ]}
+          >
+            <Svg
+              height={waveHeight}
+              width={width}
+              style={{ backgroundColor: "transparent" }}
+            >
               <Path d={wavePath} fill="black" />
             </Svg>
-            <View style={{ width, height: height, backgroundColor: 'black' }} />
+            <View style={{ width, height: height, backgroundColor: "black" }} />
           </Animated.View>
         }
       >
         {/* Everything inside here is what gets revealed by the fluid wave rising */}
         <View style={styles.layer1}>
-          
+          {isRevealed && permission?.granted ? (
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              onBarcodeScanned={({ data }) => {
+                console.log("Scanned barcode:", data);
+              }}
+            />
+          ) : null}
+
           <View style={styles.scannerHeader}>
-            <TouchableOpacity onPress={handleTriggerRender} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={handleTriggerRender}
+              style={styles.closeButton}
+            >
               <Ionicons name="close" size={28} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={styles.scannerTitle}>Scanning Mode</Text>
@@ -99,14 +178,18 @@ export default function ScanScreen() {
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
-            
-            <View style={styles.scanLine} />
+
+            <Animated.View
+              style={[
+                styles.scanLine,
+                { transform: [{ translateY: scanLineAnim }] },
+              ]}
+            />
           </View>
-          
+
           <Text style={styles.scannerFooterText}>Looking for a barcode...</Text>
         </View>
       </MaskedView>
-
     </View>
   );
 }
@@ -114,12 +197,12 @@ export default function ScanScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA'
+    backgroundColor: "#F8F9FA",
   },
   layer0: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 24,
   },
   heroMascot: {
@@ -129,20 +212,20 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 28,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.textBase,
     marginBottom: 8,
   },
   heroSubtitle: {
     fontSize: 16,
     color: colors.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
     paddingHorizontal: 20,
     marginBottom: 40,
   },
   triggerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.primary,
     paddingVertical: 16,
     paddingHorizontal: 28,
@@ -155,68 +238,93 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   triggerText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   layer1: {
     flex: 1,
-    backgroundColor: '#0D1410', // Extremely dark, almost black green to simulate camera background natively
-    alignItems: 'center',
+    backgroundColor: "#0D1410", // Extremely dark, almost black green to simulate camera background natively
+    alignItems: "center",
   },
   scannerHeader: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 20,
   },
   closeButton: {
     padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderRadius: 20,
   },
   scannerTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   viewfinderContainer: {
     width: 260,
     height: 260,
     marginTop: 80,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
   },
   corner: {
-    position: 'absolute',
+    position: "absolute",
     width: 40,
     height: 40,
-    borderColor: '#4CA456', // Neon green scan frame
+    borderColor: "#4CA456", // Neon green scan frame
   },
-  topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 },
-  topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 16 },
-  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 16 },
-  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 16 },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 16,
+  },
+  topRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 16,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 16,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 16,
+  },
   scanLine: {
-    width: '90%',
+    position: "absolute",
+    width: "90%",
     height: 2,
-    backgroundColor: '#4CA456',
-    shadowColor: '#4CA456',
+    backgroundColor: "#4CA456",
+    shadowColor: "#4CA456",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 8,
     opacity: 0.8,
   },
   scannerFooterText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     marginTop: 60,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
     opacity: 0.7,
-  }
+  },
 });
