@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import prefix from "./middleware/prefix";
 import logger from "./middleware/logger";
 import requestContext from "./middleware/request.context";
+import dbPlugin from "./middleware/db";
 
 const port = parseInt(process.env.PORT || '9100');
 
@@ -11,6 +12,7 @@ const app = Fastify({
 });
 app.register(prefix);
 app.register(requestContext);
+app.register(dbPlugin);
 
 // Root health check
 app.get("/health", async (request, reply) => {

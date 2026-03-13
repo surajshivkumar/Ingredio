@@ -9,7 +9,10 @@ This API follows a strict **N-Tier (Layered) Architecture**. All features are de
 ```text
 src/
 ├── controller/     # Manages HTTP interactions (Extracts Request, formats Reply)
-├── middleware/     # Fastify hooks applied globally or per-route scope (Auth, Context)
+├── db/             # Database connection pool & migration runner
+├── middleware/     # Fastify hooks applied globally or per-route scope (Auth, Context, DB)
+├── migrations/    # Auto-generated SQL migration files (via Drizzle Kit)
+├── models/        # Drizzle ORM table definitions (PostgreSQL schemas)
 ├── routes/         # Maps endpoint URIs and HTTP verbs directly to Controllers
 ├── services/       # Contains ALL core business logic! Connects to Postgres/Redis
 ├── types/          # TypeScript interfaces for strict Data Contracts (Inputs/Outputs)
@@ -31,20 +34,29 @@ Ensure you have **Node.js v20.x or higher** installed.
 
 ### 1. Install Dependencies
 ```bash
-nvm use --lts
+nvm use v20
 npm install
 ```
 
 ### 2. Environment Variables
 Create a `.env` file in this directory (`apps/api/`) using the example as a template:
 ```bash
-# Example .env configuration
-PORT=9100
-LOG_LEVEL=info
-NODE_ENV=development
+PORT=9600
+DATABASE_URL=postgresql://youruser@localhost:5432/ingredio
 ```
 
-### 3. Run the Server
+### 3. Create the Database
+```bash
+psql postgres -c "CREATE DATABASE ingredio;"
+```
+
+### 4. Run Migrations
+```bash
+npm run db:migrate
+```
+This applies all pending SQL migrations from `src/migrations/` to your PostgreSQL database.
+
+### 5. Run the Server
 
 **Development (Hot-Reloading):**
 Powered by `ts-node-dev`. Automatically injects the `.env` file and restarts the server on any TypeScript file changes.
@@ -57,6 +69,84 @@ Builds TypeScript to JavaScript (`dist/`) and correctly leverages Node's native 
 ```bash
 npm run build
 npm run start
+```
+
+---
+
+## 🗄️ Database
+
+### Tech Stack
+- **ORM** — [Drizzle ORM](https://orm.drizzle.team/) (type-safe, lightweight)
+- **Migration Tool** — [Drizzle Kit](https://orm.drizzle.team/kit-docs/overview) (auto-generates SQL from schema diffs)
+- **Database** — PostgreSQL
+
+### Scripts
+
+| Script | Command | Description |
+|---|---|---|
+| Generate migration | `npm run db:generate` | Reads models, diffs against existing migrations, creates a new `.sql` file |
+| Apply migrations | `npm run db:migrate` | Applies all pending migrations to your Postgres database |
+| Push schema (dev) | `npm run db:push` | Pushes schema directly without creating migration files (fast for prototyping) |
+| Drizzle Studio | `npm run db:studio` | Opens a visual database browser at `https://local.drizzle.studio` |
+
+### Schema Workflow
+
+When you modify or add a model:
+
+```bash
+# 1. Edit a model file in src/models/
+# 2. Export it from src/models/schema.ts
+# 3. Generate the migration SQL
+npm run db:generate
+
+# 4. Apply it to the database
+npm run db:migrate
+```
+
+### Data Model (20 Tables)
+
+```text
+Core Tables              Entity Tables          Junction / Child Tables
+─────────────           ──────────────          ───────────────────────
+users                   item                    user_devices
+app                     scans                   user_preferences
+category                review                  user_allergens
+brand                   box                     brand_categories
+preferences                                     item_ingredients
+allergen                                         item_allergens
+ingredients                                      scan_images
+reviewer
+box_category
+```
+
+### ER Diagram (Simplified)
+
+```
+users ──┬── user_devices
+        ├── user_preferences ── preferences
+        ├── user_allergens ── allergen ── item_allergens ── item
+        ├── scans ──┬── scan_images
+        │           └── item ──┬── item_ingredients ── ingredients
+        │                      ├── category
+        │                      └── brand ── brand_categories ── category
+        ├── review ── reviewer
+        └── box ── box_category
+```
+
+### Accessing the DB in Routes
+
+The database is available via `fastify.db` in all routes and plugins:
+
+```ts
+fastify.get("/items/:barcode", async (request, reply) => {
+    const { barcode } = request.params as { barcode: string };
+
+    const result = await fastify.db.query.item.findFirst({
+        where: (item, { eq }) => eq(item.barcode, barcode),
+    });
+
+    return reply.send(result);
+});
 ```
 
 ---
@@ -78,7 +168,7 @@ Retrieves a list of personalized product recommendations tailored to a specific 
 
 #### Example Curl
 ```bash
-curl -v -H "x-user-id: suraj123" http://localhost:9100/api/v1/recommendations
+curl -v -H "x-user-id: suraj123" http://localhost:9600/api/v1/recommendations
 ```
 
 #### Expected JSON Response
