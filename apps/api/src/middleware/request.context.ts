@@ -22,8 +22,9 @@ export default async function requestContext(app: FastifyInstance) {
                 : fullPath;
 
             const userId = request.headers["x-user-id"];
+            const isPublicRoute = request.subPath === "/login" || request.url === "/health";
 
-            if (!userId) {
+            if (!userId && !isPublicRoute) {
                 await reply.status(401).send({ message: "Unauthorized: x-user-id header missing" });
                 return;
             }
