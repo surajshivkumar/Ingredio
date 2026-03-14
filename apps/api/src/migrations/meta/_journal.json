@@ -15,6 +15,13 @@
       "when": 1773374482470,
       "tag": "0001_fast_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773518607626,
+      "tag": "0002_overjoyed_spiral",
+      "breakpoints": true
     }
   ]
 }
