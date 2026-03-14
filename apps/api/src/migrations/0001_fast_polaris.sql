@@ -1,0 +1,1 @@
+ALTER TABLE "app" ADD COLUMN "device_type" varchar(50) NOT NULL;
