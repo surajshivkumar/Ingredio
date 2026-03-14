@@ -6,15 +6,18 @@ import logger from "./middleware/logger";
 import requestContext from "./middleware/request.context";
 import dbPlugin from "./middleware/db";
 
-const port = parseInt(process.env.PORT || '9100');
+const port = parseInt(process.env.PORT || '9600');
 
 const app = Fastify({
     logger: logger
 });
 
 app.register(cors, {
-    origin: "*", // Adjust this in production
+    origin: "*", 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-user-id"]
 });
+
 app.register(prefix);
 app.register(requestContext);
 app.register(dbPlugin);
@@ -22,12 +25,6 @@ app.register(dbPlugin);
 // Root health check
 app.get("/health", async (request, reply) => {
     return reply.status(200).send({ status: "running" })
-});
-app.post("/recommend", async (request, reply) => {
-    return reply.status(200).send({ message: "Recommend API v1" });
-});
-app.post("/login", async (request, reply) => {
-    return reply.status(200).send({ message: "Recommend API v1" });
 });
 // Register the v1 prefix routes (this will add /api/v1 prefix)
 
