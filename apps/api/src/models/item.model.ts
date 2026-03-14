@@ -22,6 +22,12 @@ export const item = pgTable("item", {
     nutri_score: varchar("nutri_score", { length: 5 }),
     nova_group: integer("nova_group"),
 
+    // Product images (S3, only present if source image existed)
+    image_front_url: varchar("image_front_url", { length: 500 }),
+    image_ingredients_url: varchar("image_ingredients_url", { length: 500 }),
+    image_nutrition_url: varchar("image_nutrition_url", { length: 500 }),
+    image_packaging_url: varchar("image_packaging_url", { length: 500 }),
+
     created_at: timestamp("created_at").defaultNow(),
     updated_at: timestamp("updated_at").defaultNow(),
 });
