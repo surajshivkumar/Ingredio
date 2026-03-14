@@ -1,5 +1,6 @@
 
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import prefix from "./middleware/prefix";
 import logger from "./middleware/logger";
 import requestContext from "./middleware/request.context";
@@ -9,6 +10,10 @@ const port = parseInt(process.env.PORT || '9100');
 
 const app = Fastify({
     logger: logger
+});
+
+app.register(cors, {
+    origin: "*", // Adjust this in production
 });
 app.register(prefix);
 app.register(requestContext);
@@ -21,7 +26,9 @@ app.get("/health", async (request, reply) => {
 app.post("/recommend", async (request, reply) => {
     return reply.status(200).send({ message: "Recommend API v1" });
 });
-
+app.post("/login", async (request, reply) => {
+    return reply.status(200).send({ message: "Recommend API v1" });
+});
 // Register the v1 prefix routes (this will add /api/v1 prefix)
 
 

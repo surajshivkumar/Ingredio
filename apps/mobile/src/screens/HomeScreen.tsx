@@ -2,9 +2,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
   View, Animated, Easing, SafeAreaView, Text,
   TouchableOpacity, Image, Dimensions, StyleSheet,
+  TextInput, Alert, ActivityIndicator
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { styles } from './HomeScreen.styles';
+import { login as apiLogin } from '../services/auth.service';
 
 const { height, width } = Dimensions.get('window');
 const HALF_W = width / 2;
@@ -12,7 +14,11 @@ const MASCOT_SZ = 360;
 
 export default function HomeScreen({ navigation }: any) {
   const [showLogin, setShowLogin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
+  // ... (animation refs remain same)
   const bounceAnim   = useRef(new Animated.Value(0)).current;
   const leftPanelX   = useRef(new Animated.Value(0)).current;
   const rightPanelX  = useRef(new Animated.Value(0)).current;
@@ -21,6 +27,7 @@ export default function HomeScreen({ navigation }: any) {
   const tornOpacity  = useRef(new Animated.Value(0)).current;
   const loginOpacity = useRef(new Animated.Value(0)).current;
 
+  // ... (useEffect remains same)
   useEffect(() => {
     const bounce = Animated.loop(
       Animated.sequence([
@@ -82,6 +89,23 @@ export default function HomeScreen({ navigation }: any) {
 
   const skipAuth = () => navigation.replace('MainTabs');
 
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter your email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await apiLogin(email, password);
+      navigation.replace('MainTabs');
+    } catch (error: any) {
+      Alert.alert('Login Failed', error.message || 'Something went wrong');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // ── Login ────────────────────────────────────────────────────────────────
   if (showLogin) {
     return (
@@ -91,12 +115,37 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.contentWrapper}>
             <Image source={require('../../assets/mascot_happy.webp')} style={styles.landingMascot} resizeMode="contain" />
             <Text style={styles.brandTitle}>Ingredio</Text>
+            
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.primaryButton} onPress={skipAuth} activeOpacity={0.85}>
-                <Text style={styles.primaryButtonText}>Sign Up</Text>
+              <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} activeOpacity={0.85} disabled={isLoading}>
+                {isLoading ? (
+                  <ActivityIndicator color="#1E4620" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Login</Text>
+                )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.secondaryButton} onPress={skipAuth} activeOpacity={0.85}>
-                <Text style={styles.secondaryButtonText}>Login</Text>
+                <Text style={styles.secondaryButtonText}>Skip for now</Text>
               </TouchableOpacity>
             </View>
           </View>
