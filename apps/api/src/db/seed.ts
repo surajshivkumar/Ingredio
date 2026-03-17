@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { db, pool } from "./index";
 import {
     brand,
@@ -14,6 +15,7 @@ import {
     users,
     app,
 } from "../models/schema";
+import { CATEGORY_ALIASES } from "./categoryAliases";
 import * as fs from "fs";
 import * as readline from "readline";
 import * as path from "path";
@@ -44,8 +46,27 @@ type ProductData = {
     prefTags: string[];
 };
 
+function normalizeCategoryName(raw: string | undefined): string {
+    if (!raw) return "Uncategorized";
+    const segments = raw.split(",").map(s => s.trim()).filter(s => s.length >= 2);
+    const valid = segments.filter(s => !/^[\d.,\s\-+%]+$/.test(s) && !/^\d{6,}$/.test(s));
+    for (let i = valid.length - 1; i >= 0; i--) {
+        const alias = CATEGORY_ALIASES[valid[i].toLowerCase()];
+        if (alias) return alias;
+    }
+    return "Uncategorized";
+}
+
 async function seed() {
     console.log("Seeding database...");
+
+    console.log("Truncating tables...");
+    await db.execute(sql`
+        TRUNCATE TABLE item_allergens, item_ingredients, scans, brand_categories,
+        item, brand, category, ingredients, allergen, preferences, box_category,
+        reviewer, users, app RESTART IDENTITY CASCADE
+    `);
+    console.log("Tables truncated.");
 
     // ── Pass 1: Read all products into memory ─────────────────────────────────
     const products: ProductData[] = [];
@@ -69,7 +90,7 @@ async function seed() {
         if (!barcode || !name) continue;
 
         const brandName = product.brands || "Unknown";
-        const categoryName = (product.categories as string | undefined)?.split(",")[0]?.trim() || "Uncategorized";
+        const categoryName = normalizeCategoryName(product.categories as string | undefined);
         const ingredientList = (product.ingredients ?? [])
             .filter((ing: any) => ing.text && (ing.text as string).length <= 255)
             .map((ing: any) => ({ text: ing.text as string, percent_estimate: ing.percent_estimate }));
@@ -97,63 +118,49 @@ async function seed() {
         });
     }
 
-    console.log(`📦 Read ${products.length} products`);
+    console.log(`Read ${products.length} products`);
 
     // ── Pass 2: Batch inserts ─────────────────────────────────────────────────
 
-    // 1. Brands
-    const brandCache = new Map<string, string>();
-    for (const ch of chunk([...uniqueBrands], CHUNK)) {
-        const rows = await db.insert(brand).values(ch.map(name => ({ name, logo: "" }))).returning();
-        rows.forEach(row => brandCache.set(row.name, row.id));
-    }
-    console.log(`Brands seeded (${brandCache.size})`);
+    // 1–4. Brands, categories, ingredients, allergens (independent — run in parallel)
+    const insertChunks = async <T>(table: any, rows: T[], opts?: { onConflict?: boolean }) => {
+        const results: any[] = [];
+        for (const ch of chunk(rows, CHUNK)) {
+            let q = db.insert(table).values(ch as any);
+            if (opts?.onConflict) q = (q as any).onConflictDoNothing();
+            results.push(...await (q as any).returning());
+        }
+        return results;
+    };
 
-    // 2. Categories
-    const categoryCache = new Map<string, string>();
-    for (const ch of chunk([...uniqueCategories], CHUNK)) {
-        const rows = await db.insert(category).values(ch.map(name => ({ name, logo: "" }))).returning();
-        rows.forEach(row => categoryCache.set(row.name, row.id));
-    }
-    console.log(`Categories seeded (${categoryCache.size})`);
+    const [brandRows, categoryRows, ingredientRows, allergenRows] = await Promise.all([
+        insertChunks(brand, [...uniqueBrands].map(name => ({ name, logo: "" }))),
+        insertChunks(category, [...uniqueCategories].map(name => ({ name, logo: "" })), { onConflict: true }),
+        insertChunks(ingredients, [...uniqueIngredients].map(name => ({
+            name, description: "", ingredient_score: 0, ingredient_remark: "", is_artificial: false,
+        }))),
+        insertChunks(allergen, [...uniqueAllergens].map(name => ({ name, icon: null, severity_level: null })), { onConflict: true }),
+    ]);
 
-    // 3. Ingredients
-    const ingredientCache = new Map<string, string>();
-    for (const ch of chunk([...uniqueIngredients], CHUNK)) {
-        const rows = await db.insert(ingredients).values(
-            ch.map(name => ({ name, description: "", ingredient_score: 0, ingredient_remark: "", is_artificial: false }))
-        ).returning();
-        rows.forEach(row => ingredientCache.set(row.name, row.id));
-    }
-    console.log(`Ingredients seeded (${ingredientCache.size})`);
+    const brandCache = new Map<string, string>(brandRows.map((r: any) => [r.name, r.id]));
+    const categoryCache = new Map<string, string>(categoryRows.map((r: any) => [r.name, r.id]));
+    const ingredientCache = new Map<string, string>(ingredientRows.map((r: any) => [r.name, r.id]));
+    const allergenCache = new Map<string, string>(allergenRows.map((r: any) => [r.name, r.id]));
 
-    // 4. Allergens
-    const allergenCache = new Map<string, string>();
-    for (const ch of chunk([...uniqueAllergens], CHUNK)) {
-        const rows = await db.insert(allergen).values(
-            ch.map(name => ({ name, icon: null, severity_level: null }))
-        ).onConflictDoNothing().returning();
-        rows.forEach(row => allergenCache.set(row.name, row.id));
-    }
-    console.log(`Allergens seeded (${allergenCache.size})`);
+    console.log(`Brands (${brandCache.size}), Categories (${categoryCache.size}), Ingredients (${ingredientCache.size}), Allergens (${allergenCache.size}) seeded`);
 
     // 5. Brand-category pairs
-    const brandCategoryPairs = new Set<string>();
-    const brandCategoryValues: { brand_id: string; category_id: string }[] = [];
-    for (const p of products) {
-        const key = `${brandCache.get(p.brandName)}:${categoryCache.get(p.categoryName)}`;
-        if (!brandCategoryPairs.has(key)) {
-            brandCategoryPairs.add(key);
-            brandCategoryValues.push({ brand_id: brandCache.get(p.brandName)!, category_id: categoryCache.get(p.categoryName)! });
-        }
-    }
+    const brandCategoryValues = products.map(p => ({
+        brand_id: brandCache.get(p.brandName)!,
+        category_id: categoryCache.get(p.categoryName)!,
+    }));
     for (const ch of chunk(brandCategoryValues, CHUNK)) {
         await db.insert(brand_categories).values(ch).onConflictDoNothing();
     }
-    console.log(`Brand-category pairs seeded (${brandCategoryPairs.size})`);
+    console.log("Brand-category pairs seeded");
 
     // 6. Items
-    const itemCache = new Map<string, string>(); // barcode → id
+    const itemCache = new Map<string, string>();
     for (const ch of chunk(products, CHUNK)) {
         const rows = await db.insert(item).values(ch.map(p => ({
             name: p.name,
@@ -181,45 +188,35 @@ async function seed() {
     console.log(`Items seeded (${itemCache.size})`);
 
     // 7. Item ingredients
-    const itemIngredientValues: { item_id: string; ingredient_id: string; position: number; percentage: number | null }[] = [];
-    for (const p of products) {
+    const itemIngredientValues = products.flatMap(p => {
         const itemId = itemCache.get(p.barcode);
-        if (!itemId) continue;
-        for (let i = 0; i < p.ingredientList.length; i++) {
-            const ingredientId = ingredientCache.get(p.ingredientList[i].text);
-            if (!ingredientId) continue;
-            itemIngredientValues.push({ item_id: itemId, ingredient_id: ingredientId, position: i, percentage: p.ingredientList[i].percent_estimate ?? null });
-        }
-    }
+        if (!itemId) return [];
+        return p.ingredientList.flatMap((ing, i) => {
+            const ingredientId = ingredientCache.get(ing.text);
+            return ingredientId ? [{ item_id: itemId, ingredient_id: ingredientId, position: i, percentage: ing.percent_estimate ?? null }] : [];
+        });
+    });
     for (const ch of chunk(itemIngredientValues, CHUNK)) {
         await db.insert(item_ingredients).values(ch).onConflictDoNothing();
     }
     console.log(`Item ingredients seeded (${itemIngredientValues.length})`);
 
     // 8. Item allergens
-    const itemAllergenValues: { item_id: string; allergen_id: string }[] = [];
-    const seenPairs = new Set<string>();
-    for (const p of products) {
+    const itemAllergenValues = products.flatMap(p => {
         const itemId = itemCache.get(p.barcode);
-        if (!itemId) continue;
-        for (const tag of p.allergenTags) {
+        if (!itemId) return [];
+        return p.allergenTags.flatMap(tag => {
             const allergenId = allergenCache.get(tag);
-            if (!allergenId) continue;
-            const key = `${itemId}:${allergenId}`;
-            if (!seenPairs.has(key)) {
-                seenPairs.add(key);
-                itemAllergenValues.push({ item_id: itemId, allergen_id: allergenId });
-            }
-        }
-    }
+            return allergenId ? [{ item_id: itemId, allergen_id: allergenId }] : [];
+        });
+    });
     for (const ch of chunk(itemAllergenValues, CHUNK)) {
         await db.insert(item_allergens).values(ch).onConflictDoNothing();
     }
     console.log(`Item allergens seeded (${itemAllergenValues.length})`);
 
     // 9. Preferences
-    const preferenceSet = new Set<string>();
-    products.forEach(p => p.prefTags.forEach(tag => preferenceSet.add(tag)));
+    const preferenceSet = new Set(products.flatMap(p => p.prefTags));
     for (const ch of chunk([...preferenceSet], CHUNK)) {
         await db.insert(preferences).values(ch.map(tag => ({ name: tag, description: "", flag: false }))).onConflictDoNothing();
     }
