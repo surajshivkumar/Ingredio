@@ -6,6 +6,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import PlaceholderScreen from '../screens/PlaceholderScreen';
 import ScanScreen from '../screens/ScanScreen'; // Import the new scanner module
 import { colors } from '../theme/colors';
+import ExploreScreen from '../screens/ExploreScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -83,7 +84,7 @@ export default function BottomTabNavigator() {
         }}
       />
       <Tab.Screen name="History" component={PlaceholderScreen} initialParams={{ name: "History" }} />
-      <Tab.Screen name="Discover" component={PlaceholderScreen} initialParams={{ name: "Discover" }} />
+      <Tab.Screen name="Discover" component={ExploreScreen} initialParams={{ name: "Discover" }} />
     </Tab.Navigator>
   );
 }

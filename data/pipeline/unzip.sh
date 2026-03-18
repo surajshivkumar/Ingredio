@@ -1,0 +1,1 @@
+tar -xvf './india_products_cleaned.jsonl.gz'

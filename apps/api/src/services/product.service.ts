@@ -11,6 +11,13 @@ import {
 } from "../models/schema";
 
 export class ProductService {
+    async getCategories() {
+        return db
+            .select({ id: category.id, name: category.name, logo: category.logo })
+            .from(category)
+            .orderBy(asc(category.name));
+    }
+
     async getItemsByCategory(categoryId: string) {
         return db
             .select({

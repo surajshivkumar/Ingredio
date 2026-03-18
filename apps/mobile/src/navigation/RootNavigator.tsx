@@ -2,11 +2,14 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import BottomTabNavigator from './BottomTabNavigator';
+import CategoryItemsScreen from '../screens/CategoryItemsScreen';
+import ProductDetailScreen from '../screens/ProductDetailScreen';
 
-// Define our types for strict typing later on
 export type RootStackParamList = {
   SplashLogin: undefined;
   MainTabs: undefined;
+  CategoryItems: { categoryId: string; categoryName: string };
+  ProductDetail: { categoryId: string; itemId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -14,20 +17,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {/* 
-        The initial screen is our bouncy mascot + login UI 
-      */}
       <Stack.Screen name="SplashLogin" component={HomeScreen} />
-      
-      {/* 
-        Once they click Login/Signup, we replace the stack with the BottomTabs 
-        preventing them from swiping back to the login screen 
-      */}
-      <Stack.Screen 
-        name="MainTabs" 
-        component={BottomTabNavigator} 
+      <Stack.Screen
+        name="MainTabs"
+        component={BottomTabNavigator}
         options={{ gestureEnabled: false }}
       />
+      <Stack.Screen name="CategoryItems" component={CategoryItemsScreen} />
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
     </Stack.Navigator>
   );
 }
+

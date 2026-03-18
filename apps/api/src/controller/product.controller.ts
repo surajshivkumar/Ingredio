@@ -8,6 +8,15 @@ export class ProductController {
         this.productService = new ProductService();
     }
 
+    async getCategories(_request: FastifyRequest, reply: FastifyReply) {
+        try {
+            const categories = await this.productService.getCategories();
+            return reply.status(200).send(categories);
+        } catch (err: any) {
+            return reply.status(500).send({ message: err.message || "Internal server error" });
+        }
+    }
+
     async getItemsByCategory(request: FastifyRequest, reply: FastifyReply) {
         const { categoryId } = request.params as { categoryId: string };
         try {
@@ -34,3 +43,4 @@ export class ProductController {
         }
     }
 }
+

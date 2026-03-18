@@ -6,6 +6,8 @@ export default async function productRoutes(fastify: FastifyInstance) {
 
     fastify.get("/category/:categoryId/items", controller.getItemsByCategory.bind(controller));
     fastify.get("/category/:categoryId/items/:itemId", controller.getItemById.bind(controller));
+    fastify.get("/categories", controller.getCategories.bind(controller));
+
 
     // GET /api/v1/products/:barcode
     fastify.get("/:barcode", async (request, reply) => {
