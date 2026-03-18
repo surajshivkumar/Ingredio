@@ -1,23 +1,30 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import { ProductService } from "../services/product.service";
 
-const productService = new ProductService();
-
 export class ProductController {
-    static async getItemsByCategory(request: FastifyRequest, reply: FastifyReply) {
+    private productService: ProductService;
+
+    constructor() {
+        this.productService = new ProductService();
+    }
+
+    async getItemsByCategory(request: FastifyRequest, reply: FastifyReply) {
         const { categoryId } = request.params as { categoryId: string };
         try {
-            const items = await productService.getItemsByCategory(categoryId);
+            const items = await this.productService.getItemsByCategory(categoryId);
+            if (!items || items.length === 0) {
+                return reply.status(404).send({ message: "Category not found" });
+            }
             return reply.status(200).send(items);
         } catch (err: any) {
             return reply.status(500).send({ message: err.message || "Internal server error" });
         }
     }
 
-    static async getItemById(request: FastifyRequest, reply: FastifyReply) {
+    async getItemById(request: FastifyRequest, reply: FastifyReply) {
         const { categoryId, itemId } = request.params as { categoryId: string; itemId: string };
         try {
-            const item = await productService.getItemById(categoryId, itemId);
+            const item = await this.productService.getItemById(categoryId, itemId);
             if (!item) {
                 return reply.status(404).send({ message: "Item not found" });
             }

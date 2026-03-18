@@ -2,8 +2,10 @@ import { FastifyInstance } from "fastify";
 import { ProductController } from "../controller/product.controller";
 
 export default async function productRoutes(fastify: FastifyInstance) {
-    fastify.get("/category/:categoryId/items", ProductController.getItemsByCategory);
-    fastify.get("/category/:categoryId/items/:itemId", ProductController.getItemById);
+    const controller = new ProductController();
+
+    fastify.get("/category/:categoryId/items", controller.getItemsByCategory.bind(controller));
+    fastify.get("/category/:categoryId/items/:itemId", controller.getItemById.bind(controller));
 
     // GET /api/v1/products/:barcode
     fastify.get("/:barcode", async (request, reply) => {
@@ -19,7 +21,7 @@ export default async function productRoutes(fastify: FastifyInstance) {
     });
 
     // POST /api/v1/products/scan
-    fastify.post("/scan", async (request, reply) => {
+    fastify.post("/scan", async (_request, reply) => {
         // Placeholder for OCR logic
         return reply.status(200).send({
             message: "OCR processing started"
