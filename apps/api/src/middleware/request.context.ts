@@ -1,4 +1,5 @@
 import { FastifyInstance } from "fastify";
+import { UnauthorizedError } from "../errors";
 
 // Augment the FastifyRequest type so `.subPath` is available everywhere
 declare module "fastify" {
@@ -25,8 +26,7 @@ export default async function requestContext(app: FastifyInstance) {
             const isPublicRoute = request.subPath === "/login" || request.url === "/health";
 
             if (!userId && !isPublicRoute) {
-                await reply.status(401).send({ message: "Unauthorized: x-user-id header missing" });
-                return;
+                throw new UnauthorizedError("x-user-id header missing");
             }
         }
     );
