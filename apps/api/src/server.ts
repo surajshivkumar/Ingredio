@@ -5,6 +5,7 @@ import prefix from "./middleware/prefix";
 import logger from "./middleware/logger";
 import requestContext from "./middleware/request.context";
 import dbPlugin from "./middleware/db";
+import errorHandler from "./middleware/error.handler";
 
 const port = parseInt(process.env.PORT || '9600');
 
@@ -21,6 +22,7 @@ app.register(cors, {
 app.register(prefix);
 app.register(requestContext);
 app.register(dbPlugin);
+app.register(errorHandler);
 
 // Root health check
 app.get("/health", async (request, reply) => {
