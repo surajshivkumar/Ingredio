@@ -1,13 +1,9 @@
 import bcrypt from "bcrypt";
-import { eq } from "drizzle-orm";
-import { db } from "../db/index";
-import { users } from "../models/schema";
+import { usersRepository } from "../repositories";
 
 export class LoginService {
     async authenticateUser(email: string, password: string) {
-        const user = await db.query.users.findFirst({
-            where: eq(users.email, email),
-        });
+        const user = await usersRepository.findByEmail(email);
 
         if (!user) {
             throw { statusCode: 404, message: "User not found" };
