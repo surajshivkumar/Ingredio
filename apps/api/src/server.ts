@@ -1,6 +1,7 @@
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import prefix from "./middleware/prefix";
 import logger from "./middleware/logger";
 import requestContext from "./middleware/request.context";
@@ -12,6 +13,9 @@ const port = parseInt(process.env.PORT || '9600');
 const app = Fastify({
     logger: logger
 });
+
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
 
 app.register(cors, {
     origin: "*", 
