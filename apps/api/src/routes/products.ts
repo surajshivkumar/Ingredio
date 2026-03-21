@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { ProductController } from "../controller/product.controller";
-import { CategoryParamsSchema, ItemParamsSchema, BarcodeParamsSchema } from "../schemas/product.schemas";
+import { CategoryParamsSchema, ItemParamsSchema } from "../schemas/product.schemas";
 
 export default async function productRoutes(fastify: FastifyInstance) {
     const controller = new ProductController();
@@ -22,11 +22,8 @@ export default async function productRoutes(fastify: FastifyInstance) {
     app.get("/categories", controller.getCategories.bind(controller));
 
     // GET /api/v1/products/:barcode
-    app.get(
-        "/:barcode",
-        { schema: { params: BarcodeParamsSchema } },
-        async (request, reply) => {
-            const { barcode } = request.params;
+    app.get("/:barcode", async (request, reply) => {
+            const { barcode } = request.params as { barcode: string };
 
             // Placeholder logic: You would look up this barcode in Postgres/Redis here.
             return reply.status(200).send({
