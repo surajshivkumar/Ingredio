@@ -30,45 +30,169 @@ Never put database calls directly in a Controller. Everything goes through a Ser
 
 ## 🚀 Getting Started
 
-Ensure you have **Node.js v20.x or higher** installed.
+### Prerequisites
 
-### 1. Install Dependencies
+Before running the API, ensure the following are installed on your machine:
+
+| Prerequisite | Version | Check Command |
+|---|---|---|
+| **Node.js** | v20.x or higher | `node -v` |
+| **npm** | v10.x or higher | `npm -v` |
+| **PostgreSQL** | v15 or higher | `psql --version` |
+| **nvm** (optional) | latest | `nvm --version` |
+
+### Step 1 — Clone & Enter Project
+
+```bash
+git clone https://github.com/yourhandle/ingredio.git
+cd ingredio/apps/api
+```
+
+### Step 2 — Set Node Version
+
 ```bash
 nvm use v20
+```
+
+### Step 3 — Install Dependencies
+
+```bash
 npm install
 ```
 
-### 2. Environment Variables
-Create a `.env` file in this directory (`apps/api/`) using the example as a template:
+### Step 4 — Start PostgreSQL
+
+Make sure PostgreSQL is running on your machine.
+
+**macOS (Homebrew):**
 ```bash
-PORT=9600
-DATABASE_URL=postgresql://youruser@localhost:5432/ingredio
+brew services start postgresql@15
 ```
 
-### 3. Create the Database
+**Linux (systemd):**
+```bash
+sudo systemctl start postgresql
+```
+
+**Docker (alternative):**
+```bash
+docker run -d --name ingredio-postgres \
+  -e POSTGRES_USER=suraj \
+  -e POSTGRES_DB=ingredio \
+  -p 5432:5432 \
+  postgres:15
+```
+
+### Step 5 — Create the Database
+
+Connect to PostgreSQL and create the database:
+
 ```bash
 psql postgres -c "CREATE DATABASE ingredio;"
 ```
 
-### 4. Run Migrations
+If you need to create a specific user:
+```bash
+psql postgres -c "CREATE USER youruser WITH PASSWORD 'yourpassword';"
+psql postgres -c "GRANT ALL PRIVILEGES ON DATABASE ingredio TO youruser;"
+```
+
+### Step 6 — Configure Environment Variables
+
+Create a `.env` file in the `apps/api/` directory:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set the following variables:
+
+```bash
+# Server port
+PORT=9600
+
+# PostgreSQL connection string
+# Format: postgresql://<user>[:<password>]@<host>:<port>/<database>
+DATABASE_URL=postgresql://suraj@localhost:5432/ingredio
+```
+
+**Examples:**
+
+```bash
+# Local with no password
+DATABASE_URL=postgresql://suraj@localhost:5432/ingredio
+
+# Local with password
+DATABASE_URL=postgresql://youruser:yourpassword@localhost:5432/ingredio
+
+# Remote PostgreSQL
+DATABASE_URL=postgresql://user:pass@remote-host:5432/ingredio
+```
+
+### Step 7 — Generate & Run Database Migrations
+
+**Generate migration files** (creates SQL from schema changes):
+```bash
+npm run db:generate
+```
+This reads your Drizzle models in `src/models/`, diffs against existing migrations in `src/migrations/`, and generates a new `.sql` file.
+
+**Apply all pending migrations** to your PostgreSQL database:
 ```bash
 npm run db:migrate
 ```
-This applies all pending SQL migrations from `src/migrations/` to your PostgreSQL database.
 
-### 5. Run the Server
+**Push schema directly** (skip migration files, fast for prototyping):
+```bash
+npm run db:push
+```
+
+### Step 8 — Seed the Database
+
+Populate the database with sample data (products, brands, categories, users, etc.):
+
+```bash
+npm run db:seed
+```
+
+The seed script reads from `data/pipeline/india_products_cleaned.jsonl` and inserts:
+- Brands, Categories, Ingredients, Allergens
+- Products with nutrition data
+- Item-ingredient and item-allergen mappings
+- Preferences, Box categories
+- Sample users and reviewers
+- App version records
+
+**To re-seed**, the script automatically truncates all tables before inserting.
+
+### Step 9 — Run the Server
 
 **Development (Hot-Reloading):**
 Powered by `ts-node-dev`. Automatically injects the `.env` file and restarts the server on any TypeScript file changes.
+
 ```bash
 npm run dev
 ```
 
 **Production:**
-Builds TypeScript to JavaScript (`dist/`) and correctly leverages Node's native file loader for `.env`.
+Builds TypeScript to JavaScript (`dist/`) and runs the compiled output.
+
 ```bash
 npm run build
 npm run start
+```
+
+### Step 10 — Verify the Server is Running
+
+Open a new terminal and test the health check endpoint:
+
+```bash
+curl http://localhost:9600/health
+```
+
+**Expected response:**
+```json
+{ "status": "running" }
 ```
 
 ---
@@ -87,7 +211,54 @@ npm run start
 | Generate migration | `npm run db:generate` | Reads models, diffs against existing migrations, creates a new `.sql` file |
 | Apply migrations | `npm run db:migrate` | Applies all pending migrations to your Postgres database |
 | Push schema (dev) | `npm run db:push` | Pushes schema directly without creating migration files (fast for prototyping) |
+| Seed database | `npm run db:seed` | Seeds the database with initial product data from `data/pipeline/` |
 | Drizzle Studio | `npm run db:studio` | Opens a visual database browser at `https://local.drizzle.studio` |
+
+### How Drizzle Commands Work
+
+#### `npm run db:generate`
+
+```bash
+npm run db:generate
+```
+
+- Reads your schema from `src/models/schema.ts`
+- Compares against existing migration files in `src/migrations/`
+- Generates a new timestamped SQL migration file
+- **Use when:** You've added/modified a model and want a versioned migration
+
+#### `npm run db:migrate`
+
+```bash
+npm run db:migrate
+```
+
+- Reads all pending `.sql` files from `src/migrations/`
+- Applies them sequentially to your PostgreSQL database
+- Tracks which migrations have been applied (via a `__drizzle_migrations` table)
+- **Use when:** You have new migration files to apply
+
+#### `npm run db:push`
+
+```bash
+npm run db:push
+```
+
+- Pushes your current schema directly to the database
+- Does NOT create migration files
+- **Use when:** Prototyping or in early development (not for production)
+
+#### `npm run db:seed`
+
+```bash
+npm run db:seed
+```
+
+- Truncates all tables (resets data)
+- Reads products from `data/pipeline/india_products_cleaned.jsonl`
+- Inserts brands, categories, ingredients, allergens, items, users, and more
+- **Use when:** You need sample data for development/testing
+- **Requires:** Migration must be applied first (`npm run db:migrate`)
 
 ### Schema Workflow
 
@@ -155,23 +326,142 @@ fastify.get("/items/:barcode", async (request, reply) => {
 
 All application features are scoped under the `/api/v1/` prefix to guarantee backward compatibility for older mobile app clients.
 
-### Global Health Check
-An unversioned, shallow ping check reserved strictly for Load Balancers (K8s, AWS).
+> **Auth:** Most endpoints require the `x-user-id` header. Public routes: `/health`, `/api/v1/login`.
 
-*   **GET** `/health`
+---
 
-### Product Recommendations (Example Mock)
+### Health Check
 
-Retrieves a list of personalized product recommendations tailored to a specific user profile. Requires the `x-user-id` header to be present safely validated by the `request.context` hook.
-
-*   **GET** `/api/v1/recommendations`
-
-#### Example Curl
 ```bash
-curl -v -H "x-user-id: suraj123" http://localhost:9600/api/v1/recommendations
+# GET /health
+curl http://localhost:9600/health
+```
+```json
+{ "status": "running" }
 ```
 
-#### Expected JSON Response
+---
+
+### Login (Public)
+
+```bash
+# POST /api/v1/login
+curl -X POST http://localhost:9600/api/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "psharma@gmail.com", "password": "test"}'
+```
+```json
+{
+  "user": {
+    "id": "...",
+    "name": "Piyush Sharma",
+    "email": "psharma@gmail.com"
+  },
+  "token": "..."
+}
+```
+
+---
+
+### Categories
+
+```bash
+# GET /api/v1/products/categories
+curl -H "x-user-id: suraj123" http://localhost:9600/api/v1/products/categories
+```
+```json
+[
+  { "id": "...", "name": "Beverages", "logo": "" },
+  { "id": "...", "name": "Snacks", "logo": "" }
+]
+```
+
+---
+
+### Items by Category
+
+```bash
+# GET /api/v1/products/category/:categoryId/items
+curl -H "x-user-id: suraj123" \
+  http://localhost:9600/api/v1/products/category/CATEGORY_ID/items
+```
+```json
+[
+  {
+    "id": "...",
+    "name": "Organic Green Tea",
+    "barcode": "8909876543210",
+    "item_score": 0,
+    "nutri_score": "a",
+    "calories_per_100g": 1
+  }
+]
+```
+
+---
+
+### Single Item by Category
+
+```bash
+# GET /api/v1/products/category/:categoryId/items/:itemId
+curl -H "x-user-id: suraj123" \
+  http://localhost:9600/api/v1/products/category/CATEGORY_ID/items/ITEM_ID
+```
+```json
+{
+  "id": "...",
+  "name": "Organic Green Tea",
+  "barcode": "8909876543210",
+  "description": "Organic Green Tea",
+  "nutri_score": "a",
+  "nova_group": 1,
+  "image_front_url": "https://...",
+  "ingredients": [...],
+  "allergens": [...]
+}
+```
+
+---
+
+### Product by Barcode
+
+```bash
+# GET /api/v1/products/:barcode
+curl -H "x-user-id: suraj123" \
+  http://localhost:9600/api/v1/products/8901234567890
+```
+```json
+{
+  "barcode": "8901234567890",
+  "name": "Sample Product",
+  "safetyScore": "A",
+  "ingredients": ["Water", "Sugar"]
+}
+```
+
+---
+
+### Product Scan (OCR)
+
+```bash
+# POST /api/v1/products/scan
+curl -X POST http://localhost:9600/api/v1/products/scan \
+  -H "x-user-id: suraj123" \
+  -H "Content-Type: application/json"
+```
+```json
+{ "message": "OCR processing started" }
+```
+
+---
+
+### Recommendations
+
+```bash
+# GET /api/v1/recommendations
+curl -H "x-user-id: suraj123" \
+  http://localhost:9600/api/v1/recommendations
+```
 ```json
 {
   "recommendedProducts": [
@@ -191,4 +481,48 @@ curl -v -H "x-user-id: suraj123" http://localhost:9600/api/v1/recommendations
     }
   ]
 }
+```
+
+---
+
+### Endpoint Summary
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/health` | No | Server health check |
+| POST | `/api/v1/login` | No | User login |
+| GET | `/api/v1/products/categories` | Yes | List all categories |
+| GET | `/api/v1/products/category/:categoryId/items` | Yes | Items in a category |
+| GET | `/api/v1/products/category/:categoryId/items/:itemId` | Yes | Single item details |
+| GET | `/api/v1/products/:barcode` | Yes | Lookup product by barcode |
+| POST | `/api/v1/products/scan` | Yes | OCR scan (placeholder) |
+| GET | `/api/v1/recommendations` | Yes | Personalized recommendations |
+
+---
+
+## 🔧 Troubleshooting
+
+### Port already in use
+```bash
+# Find and kill the process using port 9600
+lsof -ti:9600 | xargs kill -9
+```
+
+### Database connection refused
+- Ensure PostgreSQL is running: `brew services list` or `systemctl status postgresql`
+- Verify `DATABASE_URL` in `.env` is correct
+- Check PostgreSQL is listening on port 5432: `lsof -i :5432`
+
+### Migration errors
+```bash
+# Drop and recreate the database
+psql postgres -c "DROP DATABASE ingredio;"
+psql postgres -c "CREATE DATABASE ingredio;"
+npm run db:migrate
+```
+
+### Node version mismatch
+```bash
+nvm install v20
+nvm use v20
 ```
