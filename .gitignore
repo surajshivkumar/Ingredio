@@ -207,4 +207,11 @@ marimo/_lsp/
 __marimo__/
 
 .DS_Store
-india_products_cleaned.jsonl
+
+# Data pipeline artifacts
+data/pipeline/*.json
+data/pipeline/*.jsonl
+data/pipeline/*.jsonl.gz
+data/pipeline/raw_data/
+data/pipeline/sample_rembg/
+data/OFF_fields.xlsx
