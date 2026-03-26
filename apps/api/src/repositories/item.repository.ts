@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import BaseRepository from "./base.repository";
 import { item } from "../models/item.model";
 import { brand } from "../models/brand.model";
@@ -7,6 +7,7 @@ import { item_ingredients } from "../models/item_ingredients.model";
 import { ingredients } from "../models/ingredients.model";
 import { item_allergens } from "../models/item_allergens.model";
 import { allergen } from "../models/allergen.model";
+import { PaginationParams, PaginatedResponse } from "../types/pagination";
 
 export class ItemRepository extends BaseRepository<typeof item> {
   constructor() {
@@ -18,8 +19,12 @@ export class ItemRepository extends BaseRepository<typeof item> {
     return result || null;
   }
 
-  async findManyByCategory(categoryId: string) {
-    return (this.db as any)
+  async findManyByCategory(categoryId: string, pagination: PaginationParams): Promise<PaginatedResponse<any>> {
+    const { cursor } = pagination;
+    const PAGE_SIZE = 20;
+    const SMART_LAST_PAGE_THRESHOLD = 10;
+    
+    const itemsQuery = (this.db as any)
       .select({
         id: item.id,
         name: item.name,
@@ -35,7 +40,40 @@ export class ItemRepository extends BaseRepository<typeof item> {
       .from(item)
       .innerJoin(brand, eq(item.brand_id, brand.id))
       .innerJoin(category, eq(item.category_id, category.id))
-      .where(eq(item.category_id, categoryId));
+      .orderBy(asc(item.id))
+      .limit(PAGE_SIZE + SMART_LAST_PAGE_THRESHOLD + 1);
+
+    if (cursor) {
+      itemsQuery.where(and(eq(item.category_id, categoryId), gt(item.id, cursor)));
+    } else {
+      itemsQuery.where(eq(item.category_id, categoryId));
+    }
+
+    const items = await itemsQuery;
+    let paginatedItems = items;
+    let nextCursor: string | null = null;
+    let hasMore = false;
+
+    if (items.length > PAGE_SIZE) {
+      const extras = items.slice(PAGE_SIZE);
+      
+      if (extras.length <= SMART_LAST_PAGE_THRESHOLD) {
+        paginatedItems = items.slice(0, PAGE_SIZE + extras.length);
+        hasMore = false;
+      } else {
+        paginatedItems = items.slice(0, PAGE_SIZE);
+        nextCursor = paginatedItems[paginatedItems.length - 1].id;
+        hasMore = true;
+      }
+    }
+
+    return {
+      items: paginatedItems,
+      pagination: {
+        nextCursor,
+        hasMore,
+      },
+    };
   }
 
   async findByIdWithRelations(categoryId: string, itemId: string) {
