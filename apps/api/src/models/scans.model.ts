@@ -1,4 +1,4 @@
-import { boolean, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
 import { users } from "./users.model";
 import { item } from "./item.model";
 
@@ -11,4 +11,7 @@ export const scans = pgTable("scans", {
     scanned_at: timestamp("scanned_at").defaultNow(),
     created_at: timestamp("created_at").defaultNow(),
     updated_at: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+    index("scans_user_id_idx").on(t.user_id),
+    index("scans_product_id_idx").on(t.product_id),
+]);

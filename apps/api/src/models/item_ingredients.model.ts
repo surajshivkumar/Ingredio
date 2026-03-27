@@ -1,4 +1,4 @@
-import { integer, pgTable, real, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, real, timestamp, uuid } from "drizzle-orm/pg-core";
 import { item } from "./item.model";
 import { ingredients } from "./ingredients.model";
 
@@ -9,4 +9,6 @@ export const item_ingredients = pgTable("item_ingredients", {
     position: integer("position"),
     percentage: real("percentage"),
     created_at: timestamp("created_at").defaultNow(),
-});
+}, (t) => [
+    index("item_ingredients_item_id_idx").on(t.item_id),
+]);

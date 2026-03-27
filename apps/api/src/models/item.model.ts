@@ -1,4 +1,4 @@
-import { integer, pgTable, real, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, real, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { category } from "./category.model";
 import { brand } from "./brand.model";
 
@@ -30,4 +30,6 @@ export const item = pgTable("item", {
 
     created_at: timestamp("created_at").defaultNow(),
     updated_at: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+    index("item_category_id_idx").on(t.category_id),
+]);

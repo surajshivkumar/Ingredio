@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { ProductController } from "../controller/product.controller";
-import { CategoryParamsSchema, ItemParamsSchema } from "../schemas/product.schemas";
+import { CategoryParamsSchema, ItemParamsSchema, PaginationQuerySchema } from "../schemas/product.schemas";
 
 export default async function productRoutes(fastify: FastifyInstance) {
     const controller = new ProductController();
@@ -9,7 +9,7 @@ export default async function productRoutes(fastify: FastifyInstance) {
 
     app.get(
         "/category/:categoryId/items",
-        { schema: { params: CategoryParamsSchema } },
+        { schema: { params: CategoryParamsSchema, querystring: PaginationQuerySchema } },
         controller.getItemsByCategory.bind(controller)
     );
 
